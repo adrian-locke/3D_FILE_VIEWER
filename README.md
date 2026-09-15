@@ -2,7 +2,7 @@
 
 ## Professor Brendan Guilfoyle
 
-## View Model
+
 
 [Whitehead](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=whitehead.json)
 
