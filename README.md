@@ -1,6 +1,6 @@
-# 3D File Viewer
 
-Professor Brendan Guilfoyle
+
+## Professor Brendan Guilfoyle
 
 ## View Model
 
@@ -30,6 +30,6 @@ Professor Brendan Guilfoyle
 - **Isolate** - Double-click on model
 - **Keyboard** - F (Fit), W (Wireframe), G (Grid), A (Axes), S (Screenshot), P (Parts)
 
-## Technologies
+
 
 
