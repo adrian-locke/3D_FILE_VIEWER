@@ -8,6 +8,19 @@
 
 [a=-2](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=a_minus_2.json)
 
+[a=-1](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=a_minus_1.json)
+
+[a=-0.5](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=a_minus_pt_05.json)
+
+[a=0](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=a_0.json)
+
+[a=1](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=a_1.json)
+
+[a=2](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=a_2.json)
+
+[a=3](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=a_3.json)
+
+
 
 ## Features
 
