@@ -1,12 +1,12 @@
 
 
-## Professor Brendan Guilfoyle
+
 
 
 
 [Whitehead](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=whitehead.json)
 
-[Surface](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=surface.json)
+
 
 ## Features
 
