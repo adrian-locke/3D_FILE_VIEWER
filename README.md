@@ -4,7 +4,7 @@ An interactive WebGL-based 3D model viewer for exploring 3D geometry files.
 
 ## View Model
 
-[Whitehead](https://adrian-locke.github.io/3D_FILE_VIEWER/)
+[Whitehead](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=whitehead.json)
 
 ## Features
 
@@ -28,12 +28,6 @@ An interactive WebGL-based 3D model viewer for exploring 3D geometry files.
 - **Select** - Click on model
 - **Isolate** - Double-click on model
 - **Keyboard** - F (Fit), W (Wireframe), G (Grid), A (Axes), S (Screenshot), P (Parts)
-
-## Usage with Custom Models
-
-```
-viewer.html?model=your_file.json
-```
 
 ## Technologies
 
