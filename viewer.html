@@ -1,0 +1,689 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>WhiteHead</title>
+<style>
+  :root{
+    --bg-top:#eef1f5; --bg-bottom:#ffffff; --panel-bg:#ffffff; --panel-border:#e2e5ea;
+    --text:#1f2430; --text-muted:#6b7280; --accent:#2f6fed;
+    --shadow:0 8px 24px rgba(15,23,42,.10);
+  }
+  body.dark{
+    --bg-top:#12151b; --bg-bottom:#1a1e26; --panel-bg:#1c2029; --panel-border:#2a2f3a;
+    --text:#e7e9ee; --text-muted:#9aa1ae; --shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom));}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .toolbar{position:fixed;top:16px;left:16px;display:flex;align-items:center;gap:2px;
+    background:var(--panel-bg);backdrop-filter:blur(10px);border:1px solid var(--panel-border);
+    border-radius:12px;padding:6px;box-shadow:var(--shadow);z-index:3}
+  .toolbar button{display:flex;align-items:center;gap:6px;border:none;background:transparent;
+    color:var(--text);font-size:13px;font-weight:500;padding:8px 12px;border-radius:8px;
+    cursor:pointer;transition:background .15s}
+  .toolbar button:hover{background:rgba(47,111,237,.08)}
+  .toolbar button.active{background:var(--accent);color:#fff}
+  .toolbar .sep{width:1px;height:22px;background:var(--panel-border);margin:0 4px}
+  .panel{position:fixed;top:16px;right:16px;width:260px;background:var(--panel-bg);
+    border:1px solid var(--panel-border);border-radius:14px;box-shadow:var(--shadow);
+    padding:16px;z-index:3;transform:translateX(290px);opacity:0;pointer-events:none;
+    transition:transform .18s ease,opacity .18s ease}
+  .panel.open{transform:translateX(0);opacity:1;pointer-events:auto}
+  #infoPanel,#partsPanel{max-height:70vh;overflow-y:auto}
+  .part-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;
+    cursor:pointer;font-size:13px;transition:background .12s}
+  .part-row:hover{background:rgba(47,111,237,.08)}
+  .part-row.selected{background:rgba(47,111,237,.14)}
+  .part-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);flex:none}
+  .part-row .swatch{width:14px;height:14px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.15)}
+  .part-row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .part-row.isolated{color:var(--accent);font-weight:600}
+  .panel h3{margin:0 0 14px;font-size:13px;font-weight:600;letter-spacing:.02em;
+    text-transform:uppercase;color:var(--text-muted)}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;
+    font-size:13px;gap:10px}
+  .row:last-child{margin-bottom:0}
+  .switch{position:relative;width:36px;height:20px;flex:none;display:inline-block}
+  .switch input{opacity:0;width:0;height:0;position:absolute}
+  .slider-track{position:absolute;inset:0;background:#d7dbe3;border-radius:999px;
+    transition:.15s;cursor:pointer}
+  .slider-track:before{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;
+    background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  input:checked + .slider-track{background:var(--accent)}
+  input:checked + .slider-track:before{transform:translateX(16px)}
+  input[type=range]{width:110px;accent-color:var(--accent)}
+  input[type=color]{width:36px;height:24px;border:none;border-radius:6px;padding:0;cursor:pointer;background:none}
+  @media (max-width:700px){
+    .toolbar{left:8px;right:8px;top:8px;justify-content:space-between;overflow-x:auto}
+    .toolbar button{padding:10px 8px;font-size:11px;flex:1;white-space:nowrap}
+    .toolbar .sep{display:none}
+    .panel{left:0;right:0;top:auto;bottom:0;width:auto;border-radius:16px 16px 0 0;
+      transform:translateY(100%);max-height:60vh}
+    .panel.open{transform:translateY(0)}
+    .hint{display:none}
+    #err{right:8px;left:8px;max-width:none}
+  }
+  .hint{position:fixed;bottom:16px;left:16px;font-size:12px;color:var(--text-muted);
+    background:var(--panel-bg);border:1px solid var(--panel-border);padding:7px 12px;
+    border-radius:8px;box-shadow:var(--shadow);z-index:3}
+  .spinner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:13px;color:var(--text-muted);z-index:4;background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom))}
+  #err{position:fixed;top:16px;right:290px;max-width:320px;background:#fef2f2;
+    border:1px solid #fecaca;color:#991b1b;padding:10px 14px;border-radius:10px;
+    font-size:13px;display:none;z-index:5;box-shadow:var(--shadow)}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div class="toolbar">
+  <button id="fitBtn" title="Fit view (F)">Fit View</button>
+  <div class="sep"></div>
+  <button id="wireBtn" title="Toggle wireframe (W)">Wireframe</button>
+  <button id="gridBtn" class="active" title="Toggle ground grid (G)">Grid</button>
+  <button id="axesBtn" class="active" title="Toggle axes (A)">Axes</button>
+  <div class="sep"></div>
+  <button id="shotBtn" title="Save PNG (S)">Save PNG</button>
+  <button id="settingsBtn" title="Settings">Settings</button>
+  <button id="partsBtn" title="Show/hide parts (P)">Parts</button>
+  <div class="sep" id="infoSep" style="display:none"></div>
+  <button id="infoBtn" title="Show notes" style="display:none">Info</button>
+</div>
+<div class="panel" id="partsPanel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">Parts</h3>
+    <button id="showAllBtn" style="border:none;background:transparent;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;padding:2px 4px">Show all</button>
+  </div>
+  <div id="partsList" style="display:flex;flex-direction:column;gap:2px;max-height:50vh;overflow-y:auto"></div>
+</div>
+<div class="panel" id="infoPanel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">Notes</h3>
+    <button id="infoCloseBtn" style="border:none;background:transparent;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 4px;border-radius:6px">&times;</button>
+  </div>
+  <div id="infoText" style="font-size:13px;line-height:1.5;white-space:pre-wrap;color:var(--text)"></div>
+</div>
+<div class="panel" id="panel">
+  <h3>Settings</h3>
+  <div class="row"><span>Dark background</span>
+    <label class="switch"><input type="checkbox" id="darkToggle"><span class="slider-track"></span></label>
+  </div>
+  <div class="row"><span>Auto-rotate</span>
+    <label class="switch"><input type="checkbox" id="autoToggle"><span class="slider-track"></span></label>
+  </div>
+  <div class="row"><span>Rotate speed</span><input type="range" id="rotSpeed" min="1" max="10" value="5"></div>
+  <div class="row"><span>Light intensity</span><input type="range" id="lightInt" min="2" max="12" value="7"></div>
+  <div class="row"><span>Zoom speed</span><input type="range" id="zoomSpeed" min="1" max="10" value="5"></div>
+  <div class="row"><span>Transparent PNG</span>
+    <label class="switch"><input type="checkbox" id="transPng"><span class="slider-track"></span></label>
+  </div>
+  <div class="row"><span>Override color</span><input type="color" id="customColorPicker" value="#7a8699"></div>
+</div>
+<div class="hint">Drag orbit · Right-drag pan · Scroll zoom · Click select · Double-click isolate · F/W/G/A/S/P keys</div>
+<div id="err"></div>
+<div class="spinner" id="spinner">Loading model&hellip;</div>
+<script>
+const NOTE_B64 = "dGVzdA==";
+const errBox = document.getElementById('err');
+const spinner = document.getElementById('spinner');
+function showErr(x){ errBox.style.display='block'; errBox.textContent = String(x && x.message ? x.message : x); spinner.style.display='none'; }
+async function loadScene(){
+  const params = new URLSearchParams(window.location.search);
+  const modelFile = params.get('model');
+
+  if (!modelFile) {
+    throw new Error('No model selected. Open this viewer as viewer.html?model=your_part.json');
+  }
+
+  // Keep the model path relative to viewer.html.
+  const response = await fetch(modelFile, { cache: 'no-store' });
+  if (!response.ok) throw new Error('Could not load ' + modelFile + ' (' + response.status + ').');
+  return await response.json();
+}
+function decodeText(b64){
+  if (!b64) return '';
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+function hex2rgb(h){
+  const n = parseInt(h.slice(1), 16);
+  return [((n>>16)&255)/255, ((n>>8)&255)/255, (n&255)/255];
+}
+function rgb2hex(r,g,b){
+  return '#' + [r,g,b].map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
+}
+
+function mat4Identity(){ return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); }
+function mat4Multiply(a,b){
+  const o = new Float32Array(16);
+  for (let r=0;r<4;r++) for (let c=0;c<4;c++){
+    let s=0; for (let k=0;k<4;k++) s += a[k*4+r]*b[c*4+k];
+    o[c*4+r]=s;
+  }
+  return o;
+}
+function mat4Perspective(fovy, aspect, near, far){
+  const f = 1/Math.tan(fovy/2), nf = 1/(near-far);
+  return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
+}
+function vSub(a,b){ return [a[0]-b[0],a[1]-b[1],a[2]-b[2]]; }
+function vAdd(a,b){ return [a[0]+b[0],a[1]+b[1],a[2]+b[2]]; }
+function vScale(a,s){ return [a[0]*s,a[1]*s,a[2]*s]; }
+function vNorm(a){ const l=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/l,a[1]/l,a[2]/l]; }
+function vCross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+function mat4LookAt(eye, target, up){
+  const zAxis = vNorm(vSub(eye,target));
+  const xAxis = vNorm(vCross(up,zAxis));
+  const yAxis = vCross(zAxis,xAxis);
+  return new Float32Array([
+    xAxis[0],yAxis[0],zAxis[0],0,
+    xAxis[1],yAxis[1],zAxis[1],0,
+    xAxis[2],yAxis[2],zAxis[2],0,
+    -(xAxis[0]*eye[0]+xAxis[1]*eye[1]+xAxis[2]*eye[2]),
+    -(yAxis[0]*eye[0]+yAxis[1]*eye[1]+yAxis[2]*eye[2]),
+    -(zAxis[0]*eye[0]+zAxis[1]*eye[1]+zAxis[2]*eye[2]),
+    1
+  ]);
+}
+
+async function main(){
+  const scene = await loadScene();
+  const canvas = document.getElementById('gl');
+  const gl = canvas.getContext('webgl', { antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  if (!gl) { showErr('WebGL is not available in this browser.'); return; }
+
+  const hasUint32 = !!gl.getExtension('OES_element_index_uint');
+
+  const vsSrc = `
+    attribute vec3 aPos; attribute vec3 aNrm;
+    uniform mat4 uMVP;
+    varying vec3 vNrm;
+    void main(){ vNrm = aNrm; gl_Position = uMVP * vec4(aPos,1.0); }
+  `;
+  const fsSrc = `
+    precision mediump float;
+    varying vec3 vNrm;
+    uniform vec3 uColor; uniform int uMode; uniform float uLight;
+    void main(){
+      if (uMode == 1) { gl_FragColor = vec4(0.08,0.09,0.11,1.0); return; }
+      if (uMode == 2) { gl_FragColor = vec4(uColor,1.0); return; }
+      vec3 n = normalize(vNrm);
+      float d1 = max(dot(n, normalize(vec3(0.45,0.35,0.82))), 0.0);
+      float d2 = max(dot(n, normalize(vec3(-0.35,-0.25,0.55))), 0.0);
+      float amb = 0.28;
+      float light = amb + d1 * (uLight * 0.085) + d2 * 0.22;
+      vec3 col = uColor * min(light, 1.25);
+      col = pow(col, vec3(1.0/2.2));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  function compile(type, src){
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+
+  const loc = {
+    aPos: gl.getAttribLocation(prog, 'aPos'),
+    aNrm: gl.getAttribLocation(prog, 'aNrm'),
+    uMVP: gl.getUniformLocation(prog, 'uMVP'),
+    uColor: gl.getUniformLocation(prog, 'uColor'),
+    uMode: gl.getUniformLocation(prog, 'uMode'),
+    uLight: gl.getUniformLocation(prog, 'uLight'),
+  };
+
+  function makeBuffer(target, arr){
+    const b = gl.createBuffer();
+    gl.bindBuffer(target, b);
+    gl.bufferData(target, arr, gl.STATIC_DRAW);
+    return b;
+  }
+
+  const center = scene.center || [0,0,0];
+  const meshBuffers = scene.chunks.map(c => {
+    const pos = new Float32Array(c.pos.length);
+    for (let i = 0; i < c.pos.length; i += 3) {
+      pos[i]   = c.pos[i]   + center[0];
+      pos[i+1] = c.pos[i+1] + center[1];
+      pos[i+2] = c.pos[i+2] + center[2];
+    }
+    const idxArr = hasUint32 ? new Uint32Array(c.idx) : new Uint16Array(c.idx);
+    return {
+      vbo: makeBuffer(gl.ARRAY_BUFFER, pos),
+      nbo: makeBuffer(gl.ARRAY_BUFFER, new Float32Array(c.nrm)),
+      ebo: makeBuffer(gl.ELEMENT_ARRAY_BUFFER, idxArr),
+      count: c.idx.length,
+      part: c.part,
+      useUint32: hasUint32
+    };
+  });
+
+  const partVisible = new Array(scene.parts.length).fill(true);
+  const partColors = (scene.colors && scene.colors.length === scene.parts.length)
+    ? scene.colors.map(c => [c[0], c[1], c[2]])
+    : scene.parts.map(() => [0.48, 0.525, 0.60]);
+
+  let selectedPart = null, isolatedPart = null;
+  let overrideColor = null;
+
+  const bmin = scene.bounds.min, bmax = scene.bounds.max;
+  const center0 = [(bmin[0]+bmax[0])/2, (bmin[1]+bmax[1])/2, (bmin[2]+bmax[2])/2];
+  const radius = Math.max(0.001, Math.hypot(bmax[0]-bmin[0], bmax[1]-bmin[1], bmax[2]-bmin[2]) / 2);
+
+  function niceStep(span){
+    const raw = span / 10;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+    const norm = raw / mag;
+    const step = norm < 1.5 ? 1 : norm < 3.5 ? 2 : norm < 7.5 ? 5 : 10;
+    return step * mag;
+  }
+  const gridExtent = radius * 2.2;
+  const step = niceStep(gridExtent * 2) || 1;
+  const lines = Math.ceil(gridExtent / step);
+  const gz = bmin[2];
+  const gridPos = [];
+  for (let i = -lines; i <= lines; i++){
+    const p = i * step;
+    gridPos.push(center0[0]-lines*step, center0[1]+p, gz,  center0[0]+lines*step, center0[1]+p, gz);
+    gridPos.push(center0[0]+p, center0[1]-lines*step, gz,  center0[0]+p, center0[1]+lines*step, gz);
+  }
+  const gridBuf = makeBuffer(gl.ARRAY_BUFFER, new Float32Array(gridPos));
+  const gridCount = gridPos.length / 3;
+
+  const axisLen = radius * 1.3;
+  const axisData = {
+    x: { buf: makeBuffer(gl.ARRAY_BUFFER, new Float32Array([center0[0],center0[1],center0[2], center0[0]+axisLen,center0[1],center0[2]])), color:[0.86,0.25,0.25] },
+    y: { buf: makeBuffer(gl.ARRAY_BUFFER, new Float32Array([center0[0],center0[1],center0[2], center0[0],center0[1]+axisLen,center0[2]])), color:[0.22,0.63,0.27] },
+    z: { buf: makeBuffer(gl.ARRAY_BUFFER, new Float32Array([center0[0],center0[1],center0[2], center0[0],center0[1],center0[2]+axisLen])), color:[0.20,0.45,0.90] },
+  };
+
+  let yawT = Math.PI * 0.22, pitchT = 0.5, distT = radius * 3.0;
+  let yawC = yawT, pitchC = pitchT, distC = distT;
+  let panT = [0,0,0], panC = [0,0,0];
+  let wire = false, showGrid = true, showAxes = true, autoRotate = false, dark = false;
+  let rotSpeed = 5, lightInt = 7, zoomSpeed = 5;
+  let transparentPng = false;
+
+  try {
+    if (localStorage.getItem('viewer-dark') === '1') {
+      dark = true;
+      document.body.classList.add('dark');
+      document.getElementById('darkToggle').checked = true;
+    }
+  } catch(e){}
+
+  function resize(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+    canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+  }
+  window.addEventListener('resize', resize); resize();
+
+  let pickFB = null, pickTex = null, pickDepth = null, pickW = 0, pickH = 0, lastMVP = null;
+  function ensurePickTarget(){
+    const w = canvas.width, h = canvas.height;
+    if (w === pickW && h === pickH && pickFB) return;
+    pickW = w; pickH = h;
+    if (pickFB) { gl.deleteFramebuffer(pickFB); gl.deleteTexture(pickTex); gl.deleteRenderbuffer(pickDepth); }
+    pickTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, pickTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    pickDepth = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, pickDepth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+    pickFB = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFB);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickTex, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, pickDepth);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  function pickAt(clientX, clientY){
+    if (!meshBuffers.length || !lastMVP) return null;
+    ensurePickTarget();
+    const rect = canvas.getBoundingClientRect();
+    const px = Math.round((clientX - rect.left) * canvas.width / rect.width);
+    const py = Math.round((clientY - rect.top) * canvas.height / rect.height);
+    if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) return null;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFB);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(prog);
+    gl.uniformMatrix4fv(loc.uMVP, false, lastMVP);
+    gl.uniform1i(loc.uMode, 2);
+
+    for (const b of meshBuffers){
+      if (isolatedPart !== null && b.part !== isolatedPart) continue;
+      if (!partVisible[b.part]) continue;
+      const id = b.part + 1;
+      gl.uniform3f(loc.uColor, (id&255)/255, ((id>>8)&255)/255, ((id>>16)&255)/255);
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.vbo);
+      gl.enableVertexAttribArray(loc.aPos);
+      gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, 0, 0);
+      gl.disableVertexAttribArray(loc.aNrm);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.ebo);
+      gl.drawElements(gl.TRIANGLES, b.count, b.useUint32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+    }
+
+    const pixel = new Uint8Array(4);
+    gl.readPixels(px, canvas.height - py - 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    const id = pixel[0] + pixel[1]*256 + pixel[2]*65536;
+    return id === 0 ? null : id - 1;
+  }
+
+  let dragMode = null, lastX = 0, lastY = 0, downMoveDist = 0;
+  let lastClickTime = 0, lastClickX = 0, lastClickY = 0;
+  const pointers = new Map();
+  let pinchStartDist = 0, pinchStartZoom = 0, pinchMid = null;
+
+  function applyPan(dx, dy){
+    const eye = currentEye();
+    const fwd = vNorm(vSub([center0[0]+panC[0],center0[1]+panC[1],center0[2]+panC[2]], eye));
+    const right = vNorm(vCross(fwd, [0,0,1]));
+    const camUp = vCross(right, fwd);
+    const scale = distC * 0.0016;
+    panT = vAdd(panT, vAdd(vScale(right, -dx*scale), vScale(camUp, dy*scale)));
+  }
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1){
+      dragMode = (e.button === 2 || e.shiftKey) ? 'pan' : 'orbit';
+      lastX = e.clientX; lastY = e.clientY;
+      downMoveDist = 0;
+    } else if (pointers.size === 2){
+      dragMode = null;
+      const pts = [...pointers.values()];
+      pinchStartDist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y) || 1;
+      pinchStartZoom = distT;
+      pinchMid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+    }
+  });
+  window.addEventListener('pointerup', e => {
+    const wasSingle = pointers.size === 1;
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchMid = null;
+    if (pointers.size === 0){
+      dragMode = null;
+      if (wasSingle && downMoveDist < 6){
+        const now = performance.now();
+        const isDouble = (now - lastClickTime < 350) && Math.hypot(e.clientX-lastClickX, e.clientY-lastClickY) < 20;
+        lastClickTime = isDouble ? 0 : now; lastClickX = e.clientX; lastClickY = e.clientY;
+        handlePick(e.clientX, e.clientY, isDouble);
+      }
+    } else if (pointers.size === 1){
+      const [p] = pointers.values();
+      dragMode = 'orbit'; lastX = p.x; lastY = p.y;
+    }
+  });
+  window.addEventListener('pointercancel', e => pointers.delete(e.pointerId));
+  window.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2){
+      const pts = [...pointers.values()];
+      const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y) || 1;
+      distT = Math.max(radius*0.05, Math.min(radius*30, pinchStartZoom * (pinchStartDist/dist)));
+      const mid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+      if (pinchMid) applyPan(mid.x - pinchMid.x, mid.y - pinchMid.y);
+      pinchMid = mid;
+      return;
+    }
+    if (!dragMode) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    downMoveDist += Math.abs(dx) + Math.abs(dy);
+    if (dragMode === 'orbit'){
+      yawT -= dx * 0.006;
+      pitchT = Math.max(-1.45, Math.min(1.45, pitchT + dy * 0.006));
+    } else {
+      applyPan(dx, dy);
+    }
+  });
+  canvas.addEventListener('wheel', e => {
+    const factor = 1 + (zoomSpeed/5) * 0.1;
+    distT = Math.max(radius*0.05, Math.min(radius*30, distT * (e.deltaY > 0 ? factor : 1/factor)));
+    e.preventDefault();
+  }, { passive: false });
+
+  function resetView(){ yawT = Math.PI*0.22; pitchT = 0.5; distT = radius*3.0; panT = [0,0,0]; }
+
+  function handlePick(clientX, clientY, isDouble){
+    const hit = pickAt(clientX, clientY);
+    if (isDouble){
+      if (hit === null){ resetView(); isolatedPart = null; }
+      else { isolatedPart = (isolatedPart === hit) ? null : hit; selectedPart = hit; }
+    } else {
+      selectedPart = hit;
+    }
+    refreshPartsUI();
+  }
+
+  function currentEye(){
+    const c = [center0[0]+panC[0], center0[1]+panC[1], center0[2]+panC[2]];
+    return [
+      c[0] + distC * Math.cos(pitchC) * Math.sin(yawC),
+      c[1] + distC * Math.cos(pitchC) * Math.cos(yawC),
+      c[2] + distC * Math.sin(pitchC)
+    ];
+  }
+
+  function setActive(btn, on){ btn.classList.toggle('active', on); }
+  const wireBtn = document.getElementById('wireBtn');
+  const gridBtn = document.getElementById('gridBtn');
+  const axesBtn = document.getElementById('axesBtn');
+
+  document.getElementById('fitBtn').onclick = resetView;
+  wireBtn.onclick = () => { wire = !wire; setActive(wireBtn, wire); };
+  gridBtn.onclick = () => { showGrid = !showGrid; setActive(gridBtn, showGrid); };
+  axesBtn.onclick = () => { showAxes = !showAxes; setActive(axesBtn, showAxes); };
+
+  document.getElementById('shotBtn').onclick = () => {
+    const a = document.createElement('a');
+    a.download = 'view.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+
+  const panel = document.getElementById('panel');
+  const infoPanel = document.getElementById('infoPanel');
+  const partsPanel = document.getElementById('partsPanel');
+
+  document.getElementById('settingsBtn').onclick = () => {
+    infoPanel.classList.remove('open');
+    partsPanel.classList.remove('open');
+    panel.classList.toggle('open');
+  };
+  document.getElementById('partsBtn').onclick = () => {
+    panel.classList.remove('open');
+    infoPanel.classList.remove('open');
+    partsPanel.classList.toggle('open');
+  };
+
+  const partsListEl = document.getElementById('partsList');
+  const partRows = scene.parts.map((name, i) => {
+    const row = document.createElement('div');
+    row.className = 'part-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = true;
+    cb.addEventListener('click', e => e.stopPropagation());
+    cb.addEventListener('change', () => { partVisible[i] = cb.checked; });
+
+    const swatch = document.createElement('div');
+    swatch.className = 'swatch';
+    swatch.style.background = rgb2hex(partColors[i][0], partColors[i][1], partColors[i][2]);
+
+    const label = document.createElement('span');
+    label.textContent = name;
+
+    row.appendChild(cb);
+    row.appendChild(swatch);
+    row.appendChild(label);
+    row.addEventListener('click', () => { selectedPart = i; refreshPartsUI(); });
+    row.addEventListener('dblclick', () => {
+      isolatedPart = (isolatedPart === i) ? null : i;
+      selectedPart = i;
+      refreshPartsUI();
+    });
+    partsListEl.appendChild(row);
+    return { row, cb };
+  });
+
+  function refreshPartsUI(){
+    partRows.forEach((r, i) => {
+      r.row.classList.toggle('selected', selectedPart === i);
+      r.row.classList.toggle('isolated', isolatedPart === i);
+      r.cb.checked = partVisible[i];
+    });
+  }
+  document.getElementById('showAllBtn').onclick = () => {
+    partVisible.fill(true); isolatedPart = null; selectedPart = null; refreshPartsUI();
+  };
+
+  const noteText = decodeText(NOTE_B64).trim();
+  if (noteText){
+    document.getElementById('infoText').textContent = noteText;
+    const infoBtn = document.getElementById('infoBtn');
+    infoBtn.style.display = '';
+    document.getElementById('infoSep').style.display = '';
+    infoBtn.onclick = () => {
+      panel.classList.remove('open');
+      partsPanel.classList.remove('open');
+      infoPanel.classList.toggle('open');
+    };
+    document.getElementById('infoCloseBtn').onclick = () => infoPanel.classList.remove('open');
+  } else {
+    document.getElementById('infoSep').style.display = 'none';
+  }
+
+  document.getElementById('darkToggle').addEventListener('change', e => {
+    dark = e.target.checked;
+    document.body.classList.toggle('dark', dark);
+    try { localStorage.setItem('viewer-dark', dark ? '1' : '0'); } catch(ex){}
+  });
+  document.getElementById('autoToggle').addEventListener('change', e => autoRotate = e.target.checked);
+  document.getElementById('rotSpeed').addEventListener('input', e => rotSpeed = +e.target.value);
+  document.getElementById('lightInt').addEventListener('input', e => lightInt = +e.target.value);
+  document.getElementById('zoomSpeed').addEventListener('input', e => zoomSpeed = +e.target.value);
+  document.getElementById('transPng').addEventListener('change', e => transparentPng = e.target.checked);
+  document.getElementById('customColorPicker').addEventListener('input', e => {
+    overrideColor = hex2rgb(e.target.value);
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const k = e.key.toLowerCase();
+    if (k === 'f') resetView();
+    if (k === 'w') { wire = !wire; setActive(wireBtn, wire); }
+    if (k === 'g') { showGrid = !showGrid; setActive(gridBtn, showGrid); }
+    if (k === 'a') { showAxes = !showAxes; setActive(axesBtn, showAxes); }
+    if (k === 's') document.getElementById('shotBtn').click();
+    if (k === 'p') document.getElementById('partsBtn').click();
+  });
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  let lastT = performance.now();
+  function render(now){
+    const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+    if (autoRotate) yawT += dt * (rotSpeed * 0.15);
+    const damp = 1 - Math.pow(0.001, dt);
+    yawC += (yawT - yawC) * damp;
+    pitchC += (pitchT - pitchC) * damp;
+    distC += (distT - distC) * damp;
+    panC = [panC[0]+(panT[0]-panC[0])*damp, panC[1]+(panT[1]-panC[1])*damp, panC[2]+(panT[2]-panC[2])*damp];
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (transparentPng) {
+      gl.clearColor(0,0,0,0);
+    } else {
+      gl.clearColor(dark?0.07:0.93, dark?0.08:0.945, dark?0.10:0.965, 1);
+    }
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(prog);
+
+    const eye = currentEye();
+    const c = [center0[0]+panC[0], center0[1]+panC[1], center0[2]+panC[2]];
+    const proj = mat4Perspective(Math.PI/4, canvas.width/Math.max(1,canvas.height), radius*0.01, radius*100);
+    const view = mat4LookAt(eye, c, [0,0,1]);
+    const mvp = mat4Multiply(proj, view);
+    lastMVP = mvp;
+    gl.uniformMatrix4fv(loc.uMVP, false, mvp);
+    gl.uniform1f(loc.uLight, lightInt);
+
+    if (showGrid){
+      gl.uniform1i(loc.uMode, 2);
+      gl.uniform3f(loc.uColor, dark?0.28:0.82, dark?0.30:0.85, dark?0.34:0.90);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gridBuf);
+      gl.enableVertexAttribArray(loc.aPos);
+      gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, 0, 0);
+      gl.disableVertexAttribArray(loc.aNrm);
+      gl.drawArrays(gl.LINES, 0, gridCount);
+    }
+    if (showAxes){
+      gl.uniform1i(loc.uMode, 2);
+      for (const k of ['x','y','z']){
+        const ax = axisData[k];
+        gl.uniform3f(loc.uColor, ax.color[0], ax.color[1], ax.color[2]);
+        gl.bindBuffer(gl.ARRAY_BUFFER, ax.buf);
+        gl.enableVertexAttribArray(loc.aPos);
+        gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.LINES, 0, 2);
+      }
+    }
+
+    gl.uniform1i(loc.uMode, wire ? 1 : 0);
+    const pulse = 0.55 + 0.15 * Math.sin(now * 0.004);
+
+    for (const b of meshBuffers){
+      if (isolatedPart !== null && b.part !== isolatedPart) continue;
+      if (!partVisible[b.part]) continue;
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.vbo);
+      gl.enableVertexAttribArray(loc.aPos);
+      gl.vertexAttribPointer(loc.aPos, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.nbo);
+      gl.enableVertexAttribArray(loc.aNrm);
+      gl.vertexAttribPointer(loc.aNrm, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.ebo);
+
+      let col = overrideColor || partColors[b.part];
+      if (b.part === selectedPart){
+        col = [
+          col[0]*(1-pulse) + 0.24*pulse,
+          col[1]*(1-pulse) + 0.55*pulse,
+          col[2]*(1-pulse) + 0.98*pulse
+        ];
+      }
+      gl.uniform3f(loc.uColor, col[0], col[1], col[2]);
+      gl.drawElements(wire ? gl.LINES : gl.TRIANGLES, b.count,
+        b.useUint32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+    }
+    requestAnimationFrame(render);
+  }
+
+  spinner.style.display = 'none';
+  requestAnimationFrame(render);
+}
+main().catch(showErr);
+</script>
+</body></html>
