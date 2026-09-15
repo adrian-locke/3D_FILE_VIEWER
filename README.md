@@ -1,6 +1,6 @@
 # 3D File Viewer
 
-An interactive WebGL-based 3D model viewer for exploring 3D geometry files.
+Professor Brendan Guilfoyle
 
 ## View Model
 
@@ -20,7 +20,6 @@ An interactive WebGL-based 3D model viewer for exploring 3D geometry files.
 - Part isolation (double-click to focus)
 - Screenshot export (PNG)
 - Full touch support
-- Responsive design
 
 ## Controls
 
@@ -33,6 +32,4 @@ An interactive WebGL-based 3D model viewer for exploring 3D geometry files.
 
 ## Technologies
 
-- WebGL for 3D rendering
-- HTML5 and Canvas API
-- Vanilla JavaScript
+
