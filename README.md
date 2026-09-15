@@ -6,6 +6,8 @@ An interactive WebGL-based 3D model viewer for exploring 3D geometry files.
 
 [Whitehead](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=whitehead.json)
 
+[Surface](https://adrian-locke.github.io/3D_FILE_VIEWER/viewer.html?model=surface.json)
+
 ## Features
 
 - Interactive 3D visualization with orbit, pan, and zoom
