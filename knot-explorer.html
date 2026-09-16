@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Knot Explorer</title>
+<style>
+  :root{
+    --bg: #0c0f10;
+    --panel: #14181a;
+    --line: #262c2e;
+    --text: #e7e9e6;
+    --dim: #8a938f;
+    --accent: #d6a24c;
+    --accent-dim: #6b5730;
+    --error: #c9634a;
+    --ok: #7fae86;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+    --serif: 'IBM Plex Serif', Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: var(--serif);
+    overflow: hidden;
+  }
+  #canvas-wrap { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #panel {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 380px;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    padding: 28px 24px;
+    overflow-y: auto;
+    z-index: 10;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    margin: 0 0 4px 0;
+  }
+  .sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    margin: 0 0 24px 0;
+    line-height: 1.5;
+  }
+  .group {
+    margin-bottom: 22px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .group:last-of-type { border-bottom: none; }
+  .group-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    margin-bottom: 12px;
+    letter-spacing: 0.03em;
+  }
+
+  .eq-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .eq-label {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 15px;
+    width: 18px;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+  .eq-row input[type=text] {
+    flex: 1;
+    background: #0c0f10;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 8px 10px;
+    outline: none;
+    min-width: 0;
+  }
+  .eq-row input[type=text]:focus { border-color: var(--accent-dim); }
+
+  #expr-error {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--error);
+    margin-top: 2px;
+    min-height: 14px;
+    line-height: 1.5;
+  }
+  #expr-hint {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--dim);
+    line-height: 1.6;
+    margin-top: 4px;
+    margin-bottom: 10px;
+  }
+
+  button.btn {
+    width: 100%;
+    padding: 9px 0;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-dim);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button.btn:hover { background: #7a6237; }
+  button.btn.secondary {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--dim);
+  }
+  button.btn.secondary:hover { color: var(--text); border-color: var(--accent-dim); }
+
+  .param-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .param-row input[type=text].pname {
+    width: 44px;
+    flex-shrink: 0;
+    background: #0c0f10;
+    border: 1px solid var(--line);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 8px;
+    outline: none;
+    text-align: center;
+  }
+  .param-row .slider-wrap { flex: 1; min-width: 0; }
+  .param-row .row-head {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    margin-bottom: 4px;
+  }
+  .minmax-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 5px;
+  }
+  .minmax-row input[type=number] {
+    width: 100%;
+    background: #0c0f10;
+    border: 1px solid var(--line);
+    color: var(--dim);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 4px 6px;
+    outline: none;
+    text-align: center;
+  }
+  .minmax-row input[type=number]:focus { color: var(--text); border-color: var(--accent-dim); }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--line);
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    margin-top: -5px;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 12px; height: 12px; border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  input[type=range]::-moz-range-track {
+    height: 2px;
+    background: var(--line);
+  }
+
+  .row { margin-bottom: 16px; }
+  .row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .row-head .name { color: var(--text); }
+  .row-head input.val-input {
+    width: 72px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+    padding: 0 0 2px 0;
+    outline: none;
+  }
+  .row-head input.val-input:focus { border-bottom-color: var(--accent-dim); }
+
+  .toggle-row {
+    margin-bottom: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+  }
+  .toggle-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .toggle-row input[type=checkbox] {
+    accent-color: var(--accent);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .color-row input[type=color] {
+    width: 34px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--line);
+    background: none;
+    cursor: pointer;
+  }
+  .color-row span {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  #stats {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    line-height: 1.8;
+  }
+  #stats .accent { color: var(--accent); }
+  #stats .bad { color: var(--error); }
+  #stats .ok { color: var(--ok); }
+
+  #hint {
+    position: fixed;
+    bottom: 20px;
+    right: 24px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--dim);
+    z-index: 10;
+  }
+
+  #view-toolbar {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    display: flex;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    z-index: 10;
+  }
+  #view-toolbar button {
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    color: var(--dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  #view-toolbar button:not(:last-child) { border-right: 1px solid var(--line); }
+  #view-toolbar button.active {
+    background: var(--accent-dim);
+    color: var(--text);
+  }
+
+  #intersect-alert {
+    display: none;
+    position: fixed;
+    top: 62px;
+    right: 24px;
+    background: var(--error);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 14px;
+    border: 1px solid #a24632;
+    z-index: 10;
+  }
+
+  @media (max-width: 640px) {
+    #panel { width: 100%; height: 60%; bottom: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    #canvas-wrap { top: 60%; }
+  }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>Knot Explorer</h1>
+  <p class="sub">u runs 0 → 2π. Edit equations, then press Apply.<br/>Sliders below stay live.</p>
+
+  <div class="group">
+    <div class="group-label">EQUATIONS</div>
+    <div class="eq-row">
+      <span class="eq-label">x =</span>
+      <input type="text" id="eq-x" value="(r0 + a*cos(b*u)) * cos(u)" />
+    </div>
+    <div class="eq-row">
+      <span class="eq-label">y =</span>
+      <input type="text" id="eq-y" value="(r0 + a*cos(b*u)) * sin(u)" />
+    </div>
+    <div class="eq-row">
+      <span class="eq-label">z =</span>
+      <input type="text" id="eq-z" value="c*sin(b*u) + 0.4*a*sin(c*u)" />
+    </div>
+    <div id="expr-error"></div>
+    <div id="expr-hint">
+      u (0–2π), the parameters below, and sin, cos, tan, sqrt, pow, abs, exp, log. Use * for multiply, ^ or pow() for powers.
+    </div>
+    <button class="btn" id="btn-apply">Apply equations</button>
+  </div>
+
+  <div class="group">
+    <div class="group-label">PARAMETERS</div>
+    <div id="param-list"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">SAMPLING</div>
+    <div class="row">
+      <div class="row-head"><span class="name">iso samples</span><input type="number" class="val-input" id="v-res" value="400" step="10" /></div>
+      <input type="range" id="s-res" min="20" max="1000" step="10" value="400" />
+    </div>
+    <div class="row">
+      <div class="row-head"><span class="name">tube diameter</span><input type="number" class="val-input" id="v-dia" value="0.09" step="0.01" /></div>
+      <input type="range" id="s-dia" min="0.01" max="2" step="0.01" value="0.09" />
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">MATERIAL</div>
+    <div class="color-row">
+      <input type="color" id="tube-color" value="#d6a24c" />
+      <span>tube colour</span>
+    </div>
+    <div class="row">
+      <div class="row-head"><span class="name">metalness</span><input type="number" class="val-input" id="v-metal" value="0.35" step="0.05" /></div>
+      <input type="range" id="s-metal" min="0" max="1" step="0.05" value="0.35" />
+    </div>
+    <div class="row">
+      <div class="row-head"><span class="name">roughness</span><input type="number" class="val-input" id="v-rough" value="0.4" step="0.05" /></div>
+      <input type="range" id="s-rough" min="0" max="1" step="0.05" value="0.4" />
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">DISPLAY</div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="chk-tube" checked /> Show tube (else curve only)</label>
+    </div>
+    <div id="tube-note" style="display:none; font-family: var(--mono); font-size: 10.5px; color: var(--dim); margin: -6px 0 12px 22px; line-height: 1.5;">
+      Diameter only affects the tube — with it off, the curve renders as a thin line regardless of the diameter value.
+    </div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="chk-grid" checked /> Show grid</label>
+    </div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="chk-axes" checked /> Show axes</label>
+    </div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="chk-white" checked /> White background (for papers)</label>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">EXPORT</div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="chk-annotate-eq" /> Include equations on image</label>
+    </div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="chk-annotate-params" /> Include parameters on image</label>
+    </div>
+    <button class="btn secondary" id="btn-export">Save PNG</button>
+  </div>
+
+  <div class="group">
+    <div class="group-label">SELF-INTERSECTION</div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="chk-selfintersect" checked /> Check &amp; display self-intersection</label>
+    </div>
+    <div class="row">
+      <div class="row-head"><span class="name">marker sphere diameter</span><input type="number" class="val-input" id="v-markerdia" value="0.15" step="0.01" /></div>
+      <input type="range" id="s-markerdia" min="0" max="2" step="0.01" value="0.15" />
+    </div>
+  </div>
+
+  <div id="stats">
+    <div>points: <span class="accent" id="stat-pts">—</span></div>
+    <div>equations: <span class="accent" id="stat-status">ok</span></div>
+    <div>self-intersection: <span class="accent" id="stat-intersect">—</span></div>
+  </div>
+</div>
+
+<div id="canvas-wrap"></div>
+<div id="view-toolbar">
+  <button data-view="home" class="active">Home</button>
+  <button data-view="front">Front</button>
+  <button data-view="right">Right</button>
+  <button data-view="plan">Plan</button>
+</div>
+<div id="intersect-alert">⚠ Self-intersection detected</div>
+<div id="hint">drag to orbit · scroll to zoom</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// =================================================================
+// STATE
+// =================================================================
+const paramDefs = [
+  { name: 'a',  value: 0.8, min: -3, max: 3, step: 0.02 },
+  { name: 'b',  value: 3,   min: 0, max: 20, step: 1 },
+  { name: 'c',  value: 2,   min: 0, max: 20, step: 1 },
+  { name: 'r0', value: 1.8, min: 0, max: 5, step: 0.05 },
+];
+
+const state = {
+  res: 400,
+  diameter: 0.09,   // full tube diameter, max 2
+  tubeOn: true,
+  showGrid: true,
+  showAxes: true,
+  whiteBg: true,
+  color: '#d6a24c',
+  metalness: 0.35,
+  roughness: 0.4,
+  selfIntersectOn: true,
+  markerDiameter: 0.15,
+};
+
+function safeNumber(raw, fallback) {
+  const v = parseFloat(raw);
+  return Number.isFinite(v) ? v : fallback;
+}
+
+// =================================================================
+// PARAMETER UI
+// =================================================================
+const paramListEl = document.getElementById('param-list');
+
+function buildParamRow(def) {
+  const row = document.createElement('div');
+  row.className = 'param-row';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'pname';
+  nameInput.value = def.name;
+  nameInput.addEventListener('change', () => {
+    const v = nameInput.value.trim();
+    def.name = v || def.name;
+    nameInput.value = def.name;
+    rebuildGeometry();
+  });
+
+  const sliderWrap = document.createElement('div');
+  sliderWrap.className = 'slider-wrap';
+
+  const head = document.createElement('div');
+  head.className = 'row-head';
+  head.innerHTML = `<span class="name">value</span>`;
+
+  const valInput = document.createElement('input');
+  valInput.type = 'number';
+  valInput.className = 'val-input';
+  valInput.step = def.step;
+  valInput.value = def.value;
+  head.appendChild(valInput);
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = def.min;
+  slider.max = def.max;
+  slider.step = def.step;
+  slider.value = def.value;
+
+  function setValue(v) {
+    v = Math.max(def.min, Math.min(def.max, v));
+    def.value = v;
+    slider.value = v;
+    valInput.value = v;
+    rebuildGeometry();
+  }
+
+  slider.addEventListener('input', () => setValue(safeNumber(slider.value, def.value)));
+  valInput.addEventListener('input', () => setValue(safeNumber(valInput.value, def.value)));
+
+  const minmaxRow = document.createElement('div');
+  minmaxRow.className = 'minmax-row';
+
+  const minInput = document.createElement('input');
+  minInput.type = 'number';
+  minInput.step = 'any';
+  minInput.value = def.min;
+  minInput.title = 'slider minimum';
+  minInput.addEventListener('change', () => {
+    const v = safeNumber(minInput.value, def.min);
+    if (v >= def.max) { minInput.value = def.min; return; }
+    def.min = v;
+    slider.min = v;
+    if (def.value < v) setValue(v);
+  });
+
+  const maxInput = document.createElement('input');
+  maxInput.type = 'number';
+  maxInput.step = 'any';
+  maxInput.value = def.max;
+  maxInput.title = 'slider maximum';
+  maxInput.addEventListener('change', () => {
+    const v = safeNumber(maxInput.value, def.max);
+    if (v <= def.min) { maxInput.value = def.max; return; }
+    def.max = v;
+    slider.max = v;
+    if (def.value > v) setValue(v);
+  });
+
+  minmaxRow.appendChild(minInput);
+  minmaxRow.appendChild(maxInput);
+
+  sliderWrap.appendChild(head);
+  sliderWrap.appendChild(slider);
+  sliderWrap.appendChild(minmaxRow);
+  row.appendChild(nameInput);
+  row.appendChild(sliderWrap);
+  paramListEl.appendChild(row);
+}
+
+paramDefs.forEach(buildParamRow);
+
+// =================================================================
+// EQUATION COMPILATION — only runs on Apply / Enter
+// =================================================================
+const eqXInput = document.getElementById('eq-x');
+const eqYInput = document.getElementById('eq-y');
+const eqZInput = document.getElementById('eq-z');
+const errorEl = document.getElementById('expr-error');
+const statusEl = document.getElementById('stat-status');
+
+let compiledX = null, compiledY = null, compiledZ = null;
+
+function buildScope(u) {
+  const scope = { u };
+  paramDefs.forEach(p => { scope[p.name] = p.value; });
+  return scope;
+}
+
+function applyEquations() {
+  try {
+    const cx = math.compile(eqXInput.value);
+    const cy = math.compile(eqYInput.value);
+    const cz = math.compile(eqZInput.value);
+
+    // test-evaluate before committing, so a bad equation never wipes a working curve
+    const scope = buildScope(0);
+    const tx = cx.evaluate(scope), ty = cy.evaluate(scope), tz = cz.evaluate(scope);
+    if (![tx, ty, tz].every(Number.isFinite)) throw new Error('equation does not evaluate to a finite number');
+
+    compiledX = cx; compiledY = cy; compiledZ = cz;
+    errorEl.textContent = '';
+    statusEl.textContent = 'ok';
+    statusEl.className = 'accent';
+    rebuildGeometry();
+  } catch (err) {
+    errorEl.textContent = 'Error: ' + err.message;
+    statusEl.textContent = 'error — keeping last applied equations';
+    statusEl.className = 'bad';
+  }
+}
+
+document.getElementById('btn-apply').addEventListener('click', applyEquations);
+[eqXInput, eqYInput, eqZInput].forEach(input => {
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyEquations(); }
+  });
+});
+
+class ExpressionCurve extends THREE.Curve {
+  getPoint(s) {
+    const u = s * Math.PI * 2;
+    const scope = buildScope(u);
+    return new THREE.Vector3(
+      compiledX.evaluate(scope),
+      compiledY.evaluate(scope),
+      compiledZ.evaluate(scope)
+    );
+  }
+}
+
+// =================================================================
+// SCENE SETUP
+// =================================================================
+const wrap = document.getElementById('canvas-wrap');
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(45, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+camera.position.set(6, 4, 7);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+wrap.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(5, 8, 6);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xd6a24c, 0.4);
+rim.position.set(-6, -3, -4);
+scene.add(rim);
+
+let grid = null;
+let axes = null;
+
+function rebuildGridAndAxes() {
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); grid = null; }
+  if (axes) { scene.remove(axes); axes.geometry.dispose(); axes.material.dispose(); axes = null; }
+
+  const gridColor = state.whiteBg ? 0xd8d8d8 : 0x1c2224;
+  grid = new THREE.GridHelper(20, 20, gridColor, gridColor);
+  grid.position.y = -3.2;
+  grid.visible = state.showGrid;
+  scene.add(grid);
+
+  axes = new THREE.AxesHelper(4);
+  axes.visible = state.showAxes;
+  scene.add(axes);
+}
+rebuildGridAndAxes();
+
+function applyBackground() {
+  scene.background = new THREE.Color(state.whiteBg ? 0xffffff : 0x0c0f10);
+}
+applyBackground();
+
+let currentObject = null;
+
+function disposeCurrentObject() {
+  if (!currentObject) return;
+  scene.remove(currentObject);
+  currentObject.geometry.dispose();
+  currentObject.material.dispose();
+  currentObject = null;
+}
+
+function rebuildGeometry() {
+  if (!compiledX) return; // nothing applied yet
+
+  let curve, points;
+  try {
+    curve = new ExpressionCurve();
+    points = curve.getPoints(state.res);
+    if (!points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z))) {
+      throw new Error('equation produced a non-finite point');
+    }
+  } catch (err) {
+    errorEl.textContent = 'Error: ' + err.message;
+    statusEl.textContent = 'error — keeping last valid curve';
+    statusEl.className = 'bad';
+    return;
+  }
+
+  disposeCurrentObject();
+
+  if (state.tubeOn) {
+    const radius = Math.max(0.002, state.diameter / 2);
+    const geo = new THREE.TubeGeometry(curve, state.res, radius, 12, true);
+    const mat = new THREE.MeshStandardMaterial({
+      color: state.color,
+      metalness: state.metalness,
+      roughness: state.roughness,
+    });
+    currentObject = new THREE.Mesh(geo, mat);
+  } else {
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({ color: state.color });
+    currentObject = new THREE.Line(geo, mat);
+  }
+  scene.add(currentObject);
+
+  document.getElementById('stat-pts').textContent = state.res;
+  scheduleIntersectionCheck();
+}
+
+function updateMaterialOnly() {
+  if (!currentObject) return;
+  currentObject.material.color.set(state.color);
+  if (currentObject.material.metalness !== undefined) {
+    currentObject.material.metalness = state.metalness;
+    currentObject.material.roughness = state.roughness;
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = wrap.clientWidth / wrap.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+});
+
+// =================================================================
+// VIEW TOOLBAR
+// =================================================================
+const viewDirs = {
+  home:  { dir: new THREE.Vector3(6, 4, 7).normalize(), up: new THREE.Vector3(0, 1, 0) },
+  front: { dir: new THREE.Vector3(0, 0, 1).normalize(), up: new THREE.Vector3(0, 1, 0) },
+  right: { dir: new THREE.Vector3(1, 0, 0).normalize(), up: new THREE.Vector3(0, 1, 0) },
+  plan:  { dir: new THREE.Vector3(0, 1, 0.0001).normalize(), up: new THREE.Vector3(0, 0, -1) },
+};
+const DEFAULT_CAMERA_DIST = camera.position.length(); // captured at startup, before any interaction
+
+const viewButtons = document.querySelectorAll('#view-toolbar button');
+viewButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = viewDirs[btn.dataset.view];
+    // "Home" always resets to the original distance too; the others just change direction
+    const dist = btn.dataset.view === 'home' ? DEFAULT_CAMERA_DIST : (camera.position.length() || 10);
+    camera.position.copy(v.dir).multiplyScalar(dist);
+    camera.up.copy(v.up);
+    controls.target.set(0, 0, 0);
+    controls.update();
+    viewButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// =================================================================
+// SAMPLING / MATERIAL / DISPLAY UI WIRING
+// =================================================================
+const resSlider = document.getElementById('s-res');
+const resNumber = document.getElementById('v-res');
+function setRes(v) {
+  v = Math.round(Math.max(parseFloat(resSlider.min), Math.min(parseFloat(resSlider.max), v)));
+  state.res = v;
+  resSlider.value = v;
+  resNumber.value = v;
+  rebuildGeometry();
+}
+resSlider.addEventListener('input', () => setRes(safeNumber(resSlider.value, state.res)));
+resNumber.addEventListener('input', () => setRes(safeNumber(resNumber.value, state.res)));
+
+const diaSlider = document.getElementById('s-dia');
+const diaNumber = document.getElementById('v-dia');
+function setDiameter(v) {
+  v = Math.max(0.01, Math.min(2, v));
+  state.diameter = v;
+  diaSlider.value = v;
+  diaNumber.value = v;
+  rebuildGeometry();
+}
+diaSlider.addEventListener('input', () => setDiameter(safeNumber(diaSlider.value, state.diameter)));
+diaNumber.addEventListener('input', () => setDiameter(safeNumber(diaNumber.value, state.diameter)));
+
+const colorInput = document.getElementById('tube-color');
+colorInput.addEventListener('input', () => {
+  state.color = colorInput.value;
+  updateMaterialOnly();
+});
+
+const metalSlider = document.getElementById('s-metal');
+const metalNumber = document.getElementById('v-metal');
+function setMetal(v) {
+  v = Math.max(0, Math.min(1, v));
+  state.metalness = v;
+  metalSlider.value = v;
+  metalNumber.value = v;
+  updateMaterialOnly();
+}
+metalSlider.addEventListener('input', () => setMetal(safeNumber(metalSlider.value, state.metalness)));
+metalNumber.addEventListener('input', () => setMetal(safeNumber(metalNumber.value, state.metalness)));
+
+const roughSlider = document.getElementById('s-rough');
+const roughNumber = document.getElementById('v-rough');
+function setRough(v) {
+  v = Math.max(0, Math.min(1, v));
+  state.roughness = v;
+  roughSlider.value = v;
+  roughNumber.value = v;
+  updateMaterialOnly();
+}
+roughSlider.addEventListener('input', () => setRough(safeNumber(roughSlider.value, state.roughness)));
+roughNumber.addEventListener('input', () => setRough(safeNumber(roughNumber.value, state.roughness)));
+
+document.getElementById('chk-tube').addEventListener('change', (e) => {
+  state.tubeOn = e.target.checked;
+  document.getElementById('tube-note').style.display = state.tubeOn ? 'none' : 'block';
+  rebuildGeometry();
+});
+document.getElementById('chk-grid').addEventListener('change', (e) => {
+  state.showGrid = e.target.checked;
+  if (grid) grid.visible = state.showGrid;
+});
+document.getElementById('chk-axes').addEventListener('change', (e) => {
+  state.showAxes = e.target.checked;
+  if (axes) axes.visible = state.showAxes;
+});
+document.getElementById('chk-white').addEventListener('change', (e) => {
+  state.whiteBg = e.target.checked;
+  applyBackground();
+  rebuildGridAndAxes();
+});
+
+document.getElementById('chk-selfintersect').addEventListener('change', (e) => {
+  state.selfIntersectOn = e.target.checked;
+  scheduleIntersectionCheck();
+});
+
+const markerDiaSlider = document.getElementById('s-markerdia');
+const markerDiaNumber = document.getElementById('v-markerdia');
+function setMarkerDiameter(v) {
+  v = Math.max(0, Math.min(2, v));
+  state.markerDiameter = v;
+  markerDiaSlider.value = v;
+  markerDiaNumber.value = v;
+  if (state.selfIntersectOn) runIntersectionCheck();
+}
+markerDiaSlider.addEventListener('input', () => setMarkerDiameter(safeNumber(markerDiaSlider.value, state.markerDiameter)));
+markerDiaNumber.addEventListener('input', () => setMarkerDiameter(safeNumber(markerDiaNumber.value, state.markerDiameter)));
+
+// =================================================================
+// SELF-INTERSECTION CHECK
+// Sampling-based approximation: flags points from different parts
+// of the loop (not neighbors) that sit closer than the tube diameter.
+// =================================================================
+const intersectEl = document.getElementById('stat-intersect');
+const intersectAlert = document.getElementById('intersect-alert');
+const CHECK_SAMPLES = 260;
+const NEIGHBOR_PCT = 4;
+
+let markerA = null, markerB = null, markerLine = null;
+
+function clearMarkers() {
+  [markerA, markerB, markerLine].forEach(obj => {
+    if (obj) { scene.remove(obj); obj.geometry.dispose(); obj.material.dispose(); }
+  });
+  markerA = null; markerB = null; markerLine = null;
+}
+
+function placeMarker(point, radius) {
+  const geo = new THREE.SphereGeometry(radius, 16, 16);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xc9634a });
+  const sphere = new THREE.Mesh(geo, mat);
+  sphere.position.copy(point);
+  scene.add(sphere);
+  return sphere;
+}
+
+let intersectDebounce = null;
+function scheduleIntersectionCheck() {
+  if (!state.selfIntersectOn) {
+    clearTimeout(intersectDebounce);
+    clearMarkers();
+    intersectEl.textContent = 'off';
+    intersectEl.className = 'accent';
+    intersectAlert.style.display = 'none';
+    return;
+  }
+  clearTimeout(intersectDebounce);
+  intersectDebounce = setTimeout(runIntersectionCheck, 150);
+}
+
+function runIntersectionCheck() {
+  if (!state.selfIntersectOn) return;
+  if (!compiledX) return;
+
+  let pts;
+  try {
+    pts = [];
+    for (let i = 0; i < CHECK_SAMPLES; i++) {
+      const u = (i / CHECK_SAMPLES) * Math.PI * 2;
+      const scope = buildScope(u);
+      pts.push(new THREE.Vector3(
+        compiledX.evaluate(scope),
+        compiledY.evaluate(scope),
+        compiledZ.evaluate(scope)
+      ));
+    }
+  } catch (err) {
+    intersectEl.textContent = 'unable to check (equation error)';
+    intersectEl.className = 'bad';
+    intersectAlert.style.display = 'none';
+    return;
+  }
+
+  const n = pts.length;
+  const window = Math.max(2, Math.round(n * NEIGHBOR_PCT / 100));
+
+  // Threshold is derived from the curve's own scale, not the tube diameter —
+  // this checks whether the bare centerline crosses itself, independent of
+  // how thick the tube is drawn.
+  const box = new THREE.Box3().setFromPoints(pts);
+  const extent = box.getSize(new THREE.Vector3()).length() || 1;
+  const threshold = Math.max(extent * 0.015, 0.01);
+
+  let minDist = Infinity, bestI = -1, bestJ = -1;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const circDist = Math.min(j - i, n - (j - i));
+      if (circDist < window) continue;
+      const d = pts[i].distanceTo(pts[j]);
+      if (d < minDist) { minDist = d; bestI = i; bestJ = j; }
+    }
+  }
+
+  clearMarkers();
+
+  if (minDist < threshold) {
+    const uA = (bestI / n * 2 * Math.PI).toFixed(2);
+    const uB = (bestJ / n * 2 * Math.PI).toFixed(2);
+    intersectEl.textContent = `DETECTED — near u≈${uA} and u≈${uB} (gap ${minDist.toFixed(3)})`;
+    intersectEl.className = 'bad';
+    const markerR = Math.max(state.markerDiameter / 2, 0.005);
+    markerA = placeMarker(pts[bestI], markerR);
+    markerB = placeMarker(pts[bestJ], markerR);
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([pts[bestI], pts[bestJ]]);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xc9634a });
+    markerLine = new THREE.Line(lineGeo, lineMat);
+    scene.add(markerLine);
+    intersectAlert.style.display = 'block';
+  } else {
+    intersectEl.textContent = `none detected (min separation ${minDist.toFixed(3)})`;
+    intersectEl.className = 'ok';
+    intersectAlert.style.display = 'none';
+  }
+}
+
+// =================================================================
+// PNG EXPORT
+// =================================================================
+document.getElementById('btn-export').addEventListener('click', () => {
+  try {
+    renderer.render(scene, camera); // ensure the buffer holds the current frame
+    const sourceCanvas = renderer.domElement;
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = sourceCanvas.width;
+    exportCanvas.height = sourceCanvas.height;
+    const ctx = exportCanvas.getContext('2d');
+    ctx.drawImage(sourceCanvas, 0, 0);
+
+    const includeEq = document.getElementById('chk-annotate-eq').checked;
+    const includeParams = document.getElementById('chk-annotate-params').checked;
+    if (includeEq || includeParams) {
+      drawAnnotation(ctx, exportCanvas.width, exportCanvas.height, includeEq, includeParams);
+    }
+
+    const url = exportCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `knot-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (err) {
+    console.error('Export failed:', err);
+    errorEl.textContent = 'Export failed: ' + err.message;
+  }
+});
+
+function drawAnnotation(ctx, w, h, includeEq, includeParams) {
+  const lines = [];
+  if (includeEq) {
+    lines.push(`x(u) = ${eqXInput.value}`, `y(u) = ${eqYInput.value}`, `z(u) = ${eqZInput.value}`);
+  }
+  if (includeParams) {
+    paramDefs.forEach(p => lines.push(`${p.name} = ${p.value}`));
+    lines.push(`tube diameter = ${state.diameter}`);
+  }
+  if (lines.length === 0) return;
+
+  const pad = 14;
+  const lineHeight = 16;
+  ctx.font = '12px monospace';
+  const textWidth = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const boxW = textWidth + pad * 2;
+  const boxH = lines.length * lineHeight + pad * 2;
+  const x0 = pad, y0 = h - boxH - pad;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(x0, y0, boxW, boxH);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'top';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, x0 + pad, y0 + pad + i * lineHeight);
+  });
+}
+
+// =================================================================
+// INITIAL BUILD
+// =================================================================
+applyEquations();
+</script>
+</body>
+</html>
